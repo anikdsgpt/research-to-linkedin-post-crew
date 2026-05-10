@@ -11,13 +11,15 @@ Given a topic, the workflow:
 1. Runs web research with a dedicated internet researcher agent.
 2. Runs YouTube intelligence research with a dedicated video analyst agent.
 3. Synthesizes both research outputs into a publication-ready LinkedIn post.
-4. Saves the final result to `output/linkedin_post.md`.
+4. Generates a LinkedIn-ready image from the post using DALL-E.
+5. Saves the final text and image outputs locally.
 
 ## Architecture
 
 - Agent 1: Senior Internet Research Strategist
 - Agent 2: Senior YouTube Intelligence Analyst
 - Agent 3: Senior LinkedIn Thought-Leadership Writer
+- Agent 4: Senior AI Visual Creative Director
 - Process: Sequential CrewAI process
 - Collaboration: Delegation enabled for research agents
 - Writer guidance: Knowledge source loaded from `skills/linkedin_post_writing_guide.md`
@@ -29,6 +31,7 @@ Given a topic, the workflow:
 - Verbose agent execution logs for debugging and transparency
 - Topic configurable via environment variable
 - Output persisted as markdown for easy publishing
+- Automated image download to local output directory
 
 ## Requirements
 
@@ -53,6 +56,7 @@ Example local setup:
 MODEL=hosted_vllm/qwen2.5-0.5b-instruct-q4_k_m
 VLLM_BASE_URL=http://127.0.0.1:8000/v1
 USE_TOOLS=false
+USE_DALLE=true
 TOPIC=AI Agents for Sales Prospecting
 ```
 
@@ -61,6 +65,7 @@ Example cloud-assisted setup:
 ```env
 USE_TOOLS=true
 SERPER_API_KEY=your_serper_key
+OPENAI_API_KEY=your_openai_key
 ```
 
 ## Run
@@ -76,6 +81,8 @@ python src/ai_agent_web_research_linkedin/main.py
 ## Output
 
 - Final LinkedIn post file: `output/linkedin_post.md`
+- DALL-E tool output metadata: `output/generated_images/image_generation_result.json`
+- Downloaded generated image: `output/generated_images/linkedin_visual_<timestamp>.png`
 
 ## Repository highlights
 
