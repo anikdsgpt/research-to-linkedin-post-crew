@@ -1,14 +1,22 @@
 #!/usr/bin/env python
 
+import json
 import os
+import re
+import time
+from pathlib import Path
+from urllib.request import urlretrieve
 
 from crewai import Agent, Task, Crew, Process
-from crewai_tools import SerperDevTool, YoutubeVideoSearchTool
+from crewai_tools import DallETool, SerperDevTool, YoutubeVideoSearchTool
 from crewai.knowledge.source.string_knowledge_source import StringKnowledgeSource
 
 serper_tool = SerperDevTool()
 youtube_video_search_tool = YoutubeVideoSearchTool()
+dalle_tool = DallETool(model="dall-e-3", size="1024x1024", quality="standard", n=1)
 use_tools = os.getenv("USE_TOOLS", "true").strip().lower() == "true"
+use_dalle = os.getenv("USE_DALLE", "true").strip().lower() == "true"
+image_output_dir = Path("output") / "generated_images"
 
 # Load LinkedIn writing skill guide
 skill_file_path = os.path.join(os.path.dirname(__file__), "skills", "linkedin_post_writing_guide.md")
@@ -43,6 +51,14 @@ linkedin_post_writer_agent = Agent(
     verbose=True,
 )
 
+image_creator_agent = Agent(
+    role="Senior AI Visual Creative Director",
+    goal="Generate a professional, high-quality visual for the LinkedIn post on {topic}.",
+    backstory="You are an expert AI image prompt engineer and creative director. You transform written insights into clear, brand-safe, professional visuals suitable for LinkedIn audiences. You create concise prompts that produce clean, modern imagery aligned with business storytelling.",
+    tools=[dalle_tool] if use_dalle else [],
+    verbose=True,
+)
+
 web_research_task = Task(
     description="Research the open internet thoroughly for {topic}. Focus on high-credibility sources, current trends, key facts, and practical insights. Filter out noise, unsupported claims, and duplicate information. Do not ask the user follow-up questions. Assume the topic is final and proceed with best-effort research.",
     expected_output="A structured web research brief on {topic} with key findings, notable trends, and source-backed insights that can be used by downstream tasks.",
@@ -63,16 +79,56 @@ linkedin_writing_task = Task(
     output_file="output/linkedin_post.md",
 )
 
+image_generation_task = Task(
+    description="Read the LinkedIn post from context and create a single professional image prompt aligned to its core message. Use the Dall-E Tool exactly once to generate one image. Return only the tool JSON response containing image_url and image_description.",
+    expected_output="A JSON string containing image_url and image_description for the generated LinkedIn visual.",
+    agent=image_creator_agent,
+    context=[linkedin_writing_task],
+    output_file="output/generated_images/image_generation_result.json",
+)
+
+
+def _extract_image_url(raw_text: str) -> str | None:
+    try:
+        parsed = json.loads(raw_text)
+        if isinstance(parsed, dict) and parsed.get("image_url"):
+            return str(parsed["image_url"])
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"https?://[^\s\"']+", raw_text)
+    if match:
+        return match.group(0)
+    return None
+
+
+def _save_generated_image_file() -> str | None:
+    result_path = image_output_dir / "image_generation_result.json"
+    if not result_path.exists():
+        return None
+
+    raw_text = result_path.read_text(encoding="utf-8", errors="ignore")
+    image_url = _extract_image_url(raw_text)
+    if not image_url:
+        return None
+
+    image_output_dir.mkdir(parents=True, exist_ok=True)
+    image_file = image_output_dir / f"linkedin_visual_{int(time.time())}.png"
+    urlretrieve(image_url, image_file)
+    return str(image_file)
+
 topic_research_to_linkedin_crew = Crew(
     agents=[
         web_researcher_agent,
         youtube_researcher_agent,
         linkedin_post_writer_agent,
+        image_creator_agent,
     ],
     tasks=[
         web_research_task,
         youtube_research_task,
         linkedin_writing_task,
+        image_generation_task,
     ],
     process=Process.sequential,
     verbose=True,
@@ -80,7 +136,11 @@ topic_research_to_linkedin_crew = Crew(
 
 
 def run_crew(topic: str):
-    return topic_research_to_linkedin_crew.kickoff(inputs={"topic": topic})
+    result = topic_research_to_linkedin_crew.kickoff(inputs={"topic": topic})
+    saved_image = _save_generated_image_file()
+    if saved_image:
+        print(f"Generated image saved to: {saved_image}")
+    return result
 
 
 def run():
