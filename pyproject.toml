@@ -1,0 +1,20 @@
+[project]
+name = "ai_agent_web_research_linkedin"
+version = "0.1.0"
+description = "CrewAI workflow that researches a topic from web and YouTube, then generates a publication-ready LinkedIn post."
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai-tools>=1.14.4",
+    "crewai[google-genai,tools]==1.14.4",
+]
+
+[project.scripts]
+ai_agent_web_research_linkedin = "ai_agent_web_research_linkedin.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
